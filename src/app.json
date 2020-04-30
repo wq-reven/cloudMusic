@@ -1,0 +1,72 @@
+{
+  "pages": [
+    "pages/index/main",
+    "pages/cloud/main",
+    "pages/video/main",
+    "pages/my/main",
+    "pages/ranklist/main",
+    "pages/rankdetail/main",
+    "pages/playmusic/main",
+    "pages/logs/main"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#E82103",
+    "navigationBarTitleText": "网易云音乐",
+    "navigationBarTextStyle": "white"
+  },
+  "tabBar": {
+    "color": "#AFAFAF",
+    "backgroundColor": "#fff",
+    "selectedColor": "#E82103",
+    "borderStyle": "black",
+    "list": [{
+        "text": "发现",
+        "pagePath": "pages/index/main",
+        "iconPath": "static/tabs/discover.png",
+        "selectedIconPath": "static/tabs/discover_active.png"
+      },
+      {
+        "text": "云村",
+        "pagePath": "pages/cloud/main",
+        "iconPath": "static/tabs/orders.png",
+        "selectedIconPath": "static/tabs/orders-active.png"
+      }, {
+        "text": "视频",
+        "pagePath": "pages/video/main",
+        "iconPath": "static/tabs/video.png",
+        "selectedIconPath": "static/tabs/video_active.png"
+      }, {
+        "text": "我的",
+        "pagePath": "pages/my/main",
+        "iconPath": "static/tabs/my.png",
+        "selectedIconPath": "static/tabs/my_active.png"
+      }
+    ],
+
+    "items": [{
+        "name": "发现",
+        "pagePath": "pages/index/main",
+        "icon": "static/tabs/discover.png",
+        "activeIcon": "static/tabs/discover_active.png"
+      },
+      {
+        "name": "云村",
+        "pagePath": "pages/cloud/main",
+        "icon": "static/tabs/home.png",
+        "activeIcon": "static/tabs/home-active.png"
+      }, {
+        "name": "视频",
+        "pagePath": "pages/video/main",
+        "icon": "static/tabs/video.png",
+        "activeIcon": "static/tabs/video_active.png"
+      }, {
+        "name": "我的",
+        "pagePath": "pages/my/main",
+        "icon": "static/tabs/orders.png",
+        "activeIcon": "static/tabs/orders-active.png"
+      }
+    ],
+    "position": "bottom"
+  }
+}
