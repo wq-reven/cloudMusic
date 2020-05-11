@@ -3,9 +3,11 @@
     <div class="title">
       <h3>排行榜</h3>
     </div>
-    <div class="songlist">
-      <div v-for='(item,index) in toplists' :key='index' class="list_item" v-on:click='jumpDetail(item.name)'>
-        <image :src="item.coverImgUrl" class="song_image" mode="aspectFill"/>
+    <div class="songlist" v-if="toplists.length">
+      <div v-for='(item,index) in listSimple' :key='index' class="list_item" v-on:click='jumpDetail(item.name)'>
+        <div class="imgBox">
+           <image :src="item.coverImgUrl" class="song_image" mode="aspectFill"/>
+        </div>
         <div class="desc">
           <p v-for='(song,key) in item.tracks' :key = 'key'>
             {{key+1}}. {{song.first}} - {{song.second}}
@@ -17,15 +19,17 @@
 </template>
 
 <script>
-import { mapState } from 'vuex'
-
+import { getToplist } from '../../store/apis'
 export default {
   data () {
-    return {}
+    return {
+      toplists:[]
+    }
   },
   methods: {
-    getToplist () {
-      
+    async getToplist () {
+      const res = await getToplist()
+      this.toplists = res.list
     },
     jumpDetail (type) {
       const typeObj = {
@@ -34,15 +38,17 @@ export default {
         '网易原创歌曲榜':'2',
         '云音乐热歌榜':'1'
       }
-      this.$store.commit('setRankType', typeObj[type])
-      mpvue.navigateTo({url: '/pages/rankdetail/main?type=2'})
+      mpvue.navigateTo({url: '/pages/playlist/main?rankType='+ typeObj[type]})
     }
   },
   computed: {
-		...mapState([
-			'toplists'
-		])
-	}
+    listSimple(){
+      return this.toplists.slice(0,4)
+    }
+  },
+  mounted(){
+    this.getToplist()
+  }
 }
 </script>
 
@@ -59,19 +65,29 @@ export default {
 .list_item{
   margin-bottom: 20rpx;
   display: flex;
+  justify-content: center;
   align-items: center
 }
-.song_image{
+.imgBox{
   width: 230rpx;
   height: 220rpx;
-  border-radius: 15rpx
+  border-radius: 15rpx;
+  overflow: hidden;
+}
+.song_image{
+  width: 100%;
+  height: 100%;
 }
 .desc{
-  flex: 1
+flex: 1;
 }
 .desc >p{
+  width: 430rpx;
   padding: 18rpx;
   font-size: 14px;
-  color: #666
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

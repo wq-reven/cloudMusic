@@ -1,11 +1,11 @@
 <template>
-  <div>
+  <div v-if="detailData">
     <div class="header">
       <div class="headerBg" :style="{backgroundImage: 'url(' + bgImg + ')'}"></div>
       <div class="headerContent">
         <image :src="bgImg" class="headerImg" />
         <div class="headerDesc">
-          <div class="headerTitle">{{rankListDetail.name}}</div>
+          <div class="headerTitle">{{detailData.name}}</div>
           <p>最近更新: 4月27日</p>
         </div>
       </div>
@@ -45,34 +45,52 @@
 
 <script>
 import { mapState, mapGetters } from "vuex";
+import {getToplistDetail,getPlayListDetail} from '../../store/apis'
 
 export default {
-  mounted() {},
-  onLoad(e) {
-    console.log(e);
-    if (e.type === "1") {
-      this.$store.dispatch("getPlaylistDetail");
-    } else {
-      this.$store.dispatch("getToplistDetail");
+  mounted() {
+    const queryData = this.$root.$mp.query;
+    const { songListId,  rankType} = queryData;
+    if (songListId) {
+      this.getPlaylistDetail(songListId)
     }
+    if (rankType) {
+      this.getToplistDetail(rankType)
+    }
+  },
+  onUnload(){
+   this.detailData = ''
   },
   data() {
     return {
       playIcon: require("../../../static/images/icon/listplay.png"),
       SQ: require("../../../static/images/icon/SQ.png"),
-      DJ: require("../../../static/images/icon/dujia.png")
+      DJ: require("../../../static/images/icon/dujia.png"),
+      detailData:{}
     };
   },
   methods: {
     getSongUrl (id) {
-      this.$store.commit('setSongId', id)
-      this.$store.commit('setPlayingData', id)
       mpvue.navigateTo({url: '/pages/playmusic/main?id='+id})
-    }
+    },
+    // 获取排行榜详情数据
+    async getToplistDetail(rankType){
+       const res = await getToplistDetail(rankType)
+       this.detailData = res.playlist
+    },
+    // 获取歌单详情
+    async getPlaylistDetail (playlistId) {
+      const res = await getPlayListDetail(playlistId)
+      this.detailData = res.playlist
+    },
   },
   computed: {
-    ...mapState(["rankListDetail"]),
-    ...mapGetters(["listSong", "bgImg"])
+    bgImg (state) {
+      return this.detailData.coverImgUrl
+    },
+    listSong (state) {
+      return this.detailData.tracks
+    },
   }
 };
 </script>

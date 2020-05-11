@@ -16,6 +16,7 @@
 
 <script>
 import { getPersonalized } from '../../store/apis'
+
 export default {
   data () {
     return {
@@ -29,8 +30,7 @@ export default {
       this.songlists = res.result
     },
     jumpDetail (id) {
-      this.$store.commit('setPlaylistId', id)
-      mpvue.navigateTo({url: '/pages/rankdetail/main?type=1'})
+      mpvue.navigateTo({url: '/pages/playlist/main?songListId='+ id})
     }
   },
   created () {

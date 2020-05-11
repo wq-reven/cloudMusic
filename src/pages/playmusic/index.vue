@@ -1,21 +1,55 @@
 <template>
   <div class="box">
-    <div class="lyricBox"></div>
-    <div class="coverBox">
-      <div class="cover">
-        <div class="imgBox">
-          <image :src="coverImg" mode="aspectFill" />
+    <!-- <image v-if="musicData.al" :src="musicData.al.picUrl" class="background_img" ></image> -->
+    <div class="content" v-on:click="changeLyricStatus">
+      <div class="coverBox" v-if="!showLyric">
+        <div :class="{cover: true, }">
+          <div class="imgBox" v-if="musicData.al">
+            <image :src="musicData.al.picUrl" mode="aspectFill" :animation="myRotate" />
+          </div>
         </div>
+      </div>
+      <div class="lyricBox" v-show="showLyric">
+        <lyric :lyricData='lyricData' :currentTime='currentValue'></lyric>
       </div>
     </div>
     <div class="operate">
       <div class="container">
-        <div></div>
-        <div></div>
+        <div class="operateTop" >
+          <div v-if="!showLyric" class="topcontent">
+              <image :src="operateTcon.zan" />
+              <image :src="operateTcon.download" />
+              <div class="comment" v-if="commentNum" v-on:click='jumpComment'>
+                <image :src="operateTcon.comment1" />
+                <span class="commentNum">{{commentNum}} </span>
+              </div>
+              <image :src="operateTcon.comment2" v-else />
+              <image :src="operateTcon.more" />
+          </div>
+        </div>
+        <div class="sliderBox">
+          <span class="time">{{playTime}}</span>
+          <slider
+            class="slider"
+            min="0"
+            :max="maxTime"
+            :value="currentValue"
+            backgroundColor="#999"
+            activeColor="#ffffff"
+            block-color="#ffffff"
+            block-size="10"
+            @change="slideMusic"
+          ></slider>
+          <span class="time">{{duration}}</span>
+        </div>
         <div class="playOperate">
           <image :src="playIcon.playway" />
           <image :src="playIcon.prev" />
-          <image :src="playIcon.play" class="playIconBig" v-on="handleStatus()" />
+          <image
+            :src="playing ? playIcon.pause : playIcon.play"
+            class="playIconBig"
+            v-on:click="handleStatus"
+          />
           <image :src="playIcon.next" />
           <image :src="playIcon.list" />
         </div>
@@ -24,8 +58,11 @@
   </div>
 </template>
 <script>
-import { getSongURL } from "../../store/apis";
+import { getSongUrl, getSongDetail,getSongLyric,getComment } from "../../store/apis";
+import { formatSongTime,timeToSec,formatCommentNum } from "../../utils/index";
+import lyric from "./lyric";
 import { mapState, mapMutations } from "vuex";
+
 export default {
   data() {
     return {
@@ -37,134 +74,226 @@ export default {
         next: require("../../../static/images/icon/ajb.png"),
         list: require("../../../static/images/icon/cm_list.png")
       },
-      URL: "", //播放地址
-      bgImg: this.playingData.al.picUrl, //封面
-      audio: {}, //音频对象
-      total: "", //音频总时长
-      currentTime: "", //音频当前播放时常
-      ratio: "", //播放进度百分比
-      isPause: false //是否暂停
+      operateTcon:{
+        zan:require("../../../static/images/icon/zan.png"),
+        download:require("../../../static/images/icon/download.png"),
+        comment2:require("../../../static/images/icon/comment2.png"),
+        comment1:require("../../../static/images/icon/comment1.png"),
+        more:require("../../../static/images/icon/more.png"),
+      },
+      musicData: {},
+      musicNum: 0,
+      showLyric: false,
+      myRotate: "",
+      playUrl: "",
+      playTime: "00:00",
+      Audio: {},
+      imgCountDown: null,
+      animate: {},
+      duration: "00:00",
+      maxTime: 0,
+      currentValue: 0,
+      lyricData: [],
+      commentNum: ''
     };
   },
+  components:{
+    lyric
+  },
   computed: {
-    //[歌曲信息/全局音频对象/全局播放状态]
-    ...mapState(["playingData", "globalAudio", "playing"]),
-    //背景图
-    background() {
-      return `background-image: url(${this.bgImg})`;
-    },
-    //格式化歌曲名称
-    formatName() {
-      /**
-       * [搜索结果]的歌曲数据为：artists
-       * [歌手/专辑/歌单]的歌曲数据为：ar
-       */
-      let artists = this.playingData.artists || this.playingData.ar;
-      let result = "";
-      artists.forEach((item, index, arr) => {
-        if (index === arr.length - 1) {
-          result += item.name;
-          return;
-        }
-        result += `${item.name}/`;
-      });
-      return `${this.playingData.name} - ${result}`;
+    ...mapState(["playing", "currentMusicId"])
+  },
+  destroyed(){
+    console.log('destroy')
+  },
+  onUnload(){
+    console.log('unload')
+  },
+  onHide(){
+    this.animationUnMount()
+  },
+  onShow(){
+    if (this.playing && !this.showLyric) {
+      this.createMusicAnimation()
     }
   },
   methods: {
-    ...mapMutations(["PLAYING", "PLAY_AVATAR"]),
-    //获取歌曲的播放地址
-    async getSongURL(id) {
-      const res = await getSongUrl(id);
-      if (!res || res.code !== ERR_OK) return;
-      this.URL = res.data[0].url;
+    initdata: async function(id) {
+      await this.getSongDetail(id);
+      await this.getSongUrl(id);
+      await this.getSongLyric(id)
+      await this.getComment(id)
+      this.createAudio();
     },
-    //获取歌曲封面
-    getSongCover(id) {
-      API.album({ id }).then(res => {
-        if (!res || res.code !== ERR_OK) return;
-        this.bgImg = res.album.picUrl;
+    // 创建音频实例
+    createAudio: function() {
+      this.Audio.destroy && this.Audio.destroy(); //销毁上个audio实例
+      this.Audio = wx.createInnerAudioContext(); //创建音频实例
+      this.Audio.src = this.playUrl;
+      // 音频可以播放
+      this.Audio.onCanplay(() => {
+        this.Audio.play();
+        this.$store.commit("setPlaying", true);
+        this.createMusicAnimation()
       });
+
+      const duration = setInterval(() => {
+        this.getMusicDuration();
+        if (this.duration !== "00:00") {
+          clearInterval(duration);
+        }
+      }, 200);
+      // 音频结束播放
+      this.Audio.onEnded(() => {
+        this.nextMusic();
+      });
+      //监听音频
+      this.Audio.onTimeUpdate(() => {
+        const currentTime = this.Audio.currentTime;
+        this.playTime = formatSongTime(currentTime);
+        this.currentValue = currentTime;
+      });
+      this.$store.commit("setMusicId", id);
     },
-    //创建音频对象
-    createAudio() {
-      this.globalAudio.destroy && this.globalAudio.destroy(); //销毁上个audio实例
-      this.globalAudio.src = this.URL; //URL
-      this.globalAudio.title = this.formatName; //后台标题
-      this.globalAudio.coverImgUrl = this.bgImg; //后台背景图
-      this.playTime(); //获取播放时间
-    },
-    //获取播放时间
-    playTime() {
-      setTimeout(() => {
-        //监听进度更新
-        this.globalAudio.onTimeUpdate(() => {
-          this.currentTime = this.formatTime(
-            this.globalAudio.currentTime,
-            null
-          ); //格式化当前播放时常
-          this.ratio =
-            this.globalAudio.currentTime / this.globalAudio.duration * 100; //进度百分比
-        });
+    // 创建旋转动画
+    createMusicAnimation() {
+      const animate = wx.createAnimation({
+        duration: 500
+      });
+      clearInterval(this.imgCountDown);
+      this.imgCountDown = setInterval(() => {
+        this.musicNum = this.musicNum + 1;
+        animate.rotate(4 * this.musicNum).step();
+        this.myRotate = animate.export();
       }, 500);
     },
-    //格式化播放时间
-    formatTime(currtime, totaltime) {
-      let time = currtime || totaltime;
-      //分钟
-      let min = parseInt(time / 60);
-      //秒钟（当前时常需要上取整，总时长不需要上取整）
-      let sec = totaltime ? parseInt(time % 60) : Math.ceil(time % 60);
-      min = min < 10 ? `0${min}` : min;
-      sec = sec < 10 ? `0${sec}` : sec;
-      return `${min}:${sec}`;
+    animationUnMount() {
+      clearInterval(this.imgCountDown);
     },
-    //点击播放/暂停
-    play() {
-      this.isPause ? this.globalAudio.play() : this.globalAudio.pause();
+    //获取歌曲详情
+    getSongDetail: async function(id) {
+      const result = await getSongDetail([id]);
+      this.musicData = result.songs[0];
+      wx.setNavigationBarTitle({
+        title: this.musicData.name
+      });
+      wx.setNavigationBarColor({
+        frontColor: "#ffffff",
+        backgroundColor: "#1E221E",
+        animation: {
+          duration: 400,
+          timingFunc: "easeIn"
+        }
+      });
+    },
+    // 获取歌曲url
+    getSongUrl: async function(id) {
+      const result = await getSongUrl(id);
+      this.playUrl = result.data[0].url;
+    },
+    // 获取歌曲歌词
+    getSongLyric:async function(id) {
+      const result = await getSongLyric(id)
+      if (result.code === 200) {
+        if (!result.nolyric) {
+        const lyric = result.lrc.lyric.split('\n') 
+        const lyricData = []
+        lyric.map(item => {
+          const sec = item.substr(1, item.indexOf(']') - 1) || ''
+          const text = item.substr(item.indexOf(']')+ 1)
+          const data = {
+            sec: timeToSec(sec),
+            text: text,
+            time: sec.substr(0,5)
+          }
+          if (data.sec && data.text) {
+            lyricData.push(data)
+          }
+        })
+        this.lyricData = lyricData
+        }
+      }
+    },
+    getComment: async function(id) {
+      const result = await getComment(id, 20);
+      this.commentNum = formatCommentNum(parseInt(result.total))
+    },
+    nextMusic: async function() {
+      this.$store.commit("setPlaying", !this.playing);
+      this.Audio.pause();
+      clearInterval(this.imgCountDown);
+    },
+    prevMusic: async function() {
+
+    },
+    slideMusic: function(e) {
+      const value = e.mp.detail.value;
+      this.Audio.seek(value);
+      this.currentValue = value;
+      this.playTime = formatSongTime(value);
+      if (this.Audio.paused) {
+        this.Audio.play();
+      }
+    },
+    getMusicDuration: function() {
+      const duration = this.Audio.duration;
+      this.maxTime = parseInt(duration);
+      this.duration = formatSongTime(duration);
+    },
+    handleStatus: function() {
+      this.$store.commit("setPlaying", !this.playing);
+      if (!this.playing) {
+        this.Audio.pause();
+        this.animationUnMount();
+      } else {
+        this.Audio.play();
+        this.createMusicAnimation();
+      }
+    },
+    changeLyricStatus:function(){
+      this.showLyric = !this.showLyric
+    },
+    jumpComment:function(){
+       mpvue.navigateTo({url: '/pages/comment/main?id='+this.musicData.id})
     }
   },
   async mounted() {
-    //从tabbar头像点进来的，不重新创建audio
-    // if (this.$root.$mp.query.from) return;
-    // //监听播放
-    // this.globalAudio.onPlay(() => {
-    //   this.isPause = false; //播放中
-    //   this.PLAYING(true); //全局播放中[用于通知其他组件]
-    //   this.PLAY_AVATAR(this.bgImg); //头像
-    //   this.total = this.formatTime(null, this.globalAudio.duration); //格式化总时长
-    // });
-    // //监听暂停
-    // this.globalAudio.onPause(() => {
-    //   this.isPause = true;
-    // });
-    // //监听结束
-    // this.globalAudio.onEnded(() => {
-    //   this.isPause = true;
-    //   this.PLAYING(false);
-    //   //播放完毕后可能[currentTime]和[ratio]还会有一丝丝毫秒偏差，手动设置其到终点
-    //   this.currentTime = this.total;
-    //   this.ratio = 100;
-    //   //播放下一首
-    //   this.createAudio();
-    // });
-    // /**
-    //  * 数据获取
-    //  * [搜索结果]的专辑id为：album.id
-    //  * [歌手/专辑/歌单]的专辑id为：al.id
-    //  */
-    // // const album = this.playingData.album || this.playingData.al;
-    // // this.getSongCover(album.id); //获取封面
-    // await this.getSongURL(this.playingData.id); //获取播放地址
-    // this.createAudio(); //创建audio实例
+    const id = this.$root.$mp.query.id;
+    console.log(id,'id')
+    if (id && this.currentMusicId !== id) {
+      this.$store.commit("setMusicId", id);
+      this.initdata(id);
+    } else {
+      wx.setNavigationBarTitle({
+        title: this.musicData.name
+      });
+      wx.setNavigationBarColor({
+        frontColor: "#ffffff",
+        backgroundColor: "#1E221E",
+        animation: {
+          duration: 400,
+          timingFunc: "easeIn"
+        }
+      });
+    }
   }
 };
 </script>
 <style scoped lang="less">
 .box {
+  // position: relative;
   width: 100%;
   height: 100vh;
   background-image: linear-gradient(to bottom, #1d211d, #42443c, #1d211d);
+}
+.content{
+  position: relative;
+  z-index: 10;
+  height: 100%;
+  .lyricBox{
+    height: 100%;
+    overflow: hidden;
+  }
 }
 .coverBox {
   height: 100%;
@@ -180,27 +309,64 @@ export default {
   height: 500rpx;
   border-radius: 50%;
   overflow: hidden;
+
   .imgBox {
     width: 100%;
     height: 100%;
     overflow: hidden;
     border-radius: 50%;
+
     > image {
       width: 500rpx;
       height: 500rpx;
     }
   }
 }
+.turn {
+  animation: turn 20s linear infinite;
+}
+.turnPause {
+  animation-play-state: paused;
+}
 .operate {
-  position: fixed;
+  position: absolute;
+  z-index: 11;
   bottom: 0;
   left: 0;
   width: 100%;
-  height: 200px;
-  // background-color: #000;
+  height: 340rpx;
   .container {
-    padding: 40rpx 30rpx 50rpx;
+    padding: 0rpx 30rpx 50rpx;
   }
+}
+.sliderBox {
+  display: flex;
+  align-items: center;
+  // margin-top: 100rpx;
+  width: 100%;
+  .time {
+    display: inline-block;
+    width: 50rpx;
+    color: #dddddd;
+    font-size: 10px;
+  }
+  .slider {
+    flex: 1;
+  }
+}
+.background_img{
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: 50%;
+  filter: blur(50px);
+  transform: scale(3.3);
 }
 .playOperate {
   width: 100%;
@@ -214,6 +380,49 @@ export default {
   .playIconBig {
     width: 120rpx;
     height: 120rpx;
+  }
+}
+.operateTop{
+  width: 100%;
+  height: 260rpx;
+  .topcontent{
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+  }
+   image {
+    width: 80rpx;
+    height: 80rpx;
+  }
+}
+.comment{
+  position: relative;
+  .commentNum{
+    display: inline-block;
+    width: 50rpx;
+    position: absolute;
+    color: #dddddd;
+    font-size: 10px;
+    top: 8rpx;
+    right: -20rpx;
+  }
+}
+@keyframes turn {
+  0% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(90deg);
+  }
+  50% {
+    transform: rotate(180deg);
+  }
+  75% {
+    transform: rotate(270deg);
+  }
+  100% {
+    transform: rotate(360deg);
   }
 }
 </style>

@@ -51,7 +51,6 @@ export default {
     jump (type) {
       if (type === 2) {
         wx.navigateTo({url: '/pages/ranklist/main'})
-         this.$store.dispatch('getToplist')
       }
     }
   },

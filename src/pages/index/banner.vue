@@ -66,7 +66,7 @@ export default {
 }
 .swiper {
   width: 700rpx;
-  height: 250rpx !important;
+  height: 270rpx !important;
   border-radius: 15rpx;
   overflow: hidden;
 }

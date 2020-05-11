@@ -5,8 +5,10 @@
     "pages/video/main",
     "pages/my/main",
     "pages/ranklist/main",
-    "pages/rankdetail/main",
+    "pages/playlist/main",
     "pages/playmusic/main",
+    "pages/comment/main",
+    "pages/hotcomment/main",
     "pages/logs/main"
   ],
   "window": {
